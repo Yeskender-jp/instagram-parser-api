@@ -1,19 +1,40 @@
 from flask import Flask, jsonify, request
 import instaloader
 import os
+import json
+import tempfile
 
 app = Flask(__name__)
 
-L = instaloader.Instaloader()
-
-USERNAME = os.environ.get('IG_USERNAME')
-PASSWORD = os.environ.get('IG_PASSWORD')
-
-try:
-    L.login(USERNAME, PASSWORD)
-    print(f"Залогинились как {USERNAME}")
-except Exception as e:
-    print(f"Ошибка логина: {e}")
+def get_loader():
+    L = instaloader.Instaloader()
+    
+    cookies_json = os.environ.get('IG_COOKIES')
+    if cookies_json:
+        cookies = json.loads(cookies_json)
+        import http.cookiejar
+        for cookie in cookies:
+            c = http.cookiejar.Cookie(
+                version=0,
+                name=cookie['name'],
+                value=cookie['value'],
+                port=None,
+                port_specified=False,
+                domain=cookie.get('domain', '.instagram.com'),
+                domain_specified=True,
+                domain_initial_dot=cookie.get('domain', '').startswith('.'),
+                path=cookie.get('path', '/'),
+                path_specified=True,
+                secure=cookie.get('secure', False),
+                expires=cookie.get('expirationDate'),
+                discard=False,
+                comment=None,
+                comment_url=None,
+                rest={}
+            )
+            L.context._session.cookies.set_cookie(c)
+    
+    return L
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -29,6 +50,7 @@ def get_followers():
     min_posts = data.get('minPosts', 12)
 
     try:
+        L = get_loader()
         profile = instaloader.Profile.from_username(L.context, target_username)
 
         followers = []
